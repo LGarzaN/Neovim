@@ -451,6 +451,12 @@ do
   -- PaperColor: `:colorscheme PaperColor` (light/dark follows `:set background=light|dark`)
   vim.pack.add { gh 'NLKNguyen/papercolor-theme' }
 
+  -- Kanagawa: `:colorscheme kanagawa` (or kanagawa-wave, kanagawa-dragon, kanagawa-lotus)
+  vim.pack.add { gh 'rebelot/kanagawa.nvim' }
+  require('kanagawa').setup {
+    commentStyle = { italic = false }, -- Match tokyonight: no italics in comments
+  }
+
   -- Load the colorscheme here.
   -- Like many other themes, this one has different styles, and you could load
   -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
