@@ -99,7 +99,7 @@ do
   vim.g.maplocalleader = ' '
 
   -- Set to true if you have a Nerd Font installed and selected in the terminal
-  vim.g.have_nerd_font = false
+  vim.g.have_nerd_font = true
 
   -- [[ Setting options ]]
   --  See `:help vim.o`
@@ -126,6 +126,12 @@ do
 
   -- Enable break indent
   vim.o.breakindent = true
+
+  -- Indent with 4 spaces by default (guess-indent may still match a file's existing style)
+  vim.o.tabstop = 4 -- A <Tab> character displays as 4 columns
+  vim.o.shiftwidth = 4 -- >>, <<, and auto-indent use 4 columns
+  vim.o.softtabstop = 4 -- Pressing <Tab>/<BS> in insert mode moves 4 columns
+  vim.o.expandtab = true -- Insert spaces instead of tab characters
 
   -- Enable undo/redo changes even after closing and reopening a file
   vim.o.undofile = true
@@ -156,7 +162,7 @@ do
   --   See `:help lua-options`
   --   and `:help lua-guide-options`
   vim.o.list = true
-  vim.opt.listchars = { tab = '» ', trail = '·', nbsp = '␣' }
+  vim.opt.listchars = { tab = '» ', nbsp = '␣' }
 
   -- Preview substitutions live, as you type!
   vim.o.inccommand = 'split'
@@ -218,6 +224,17 @@ do
   -- NOTE: This won't work in all terminal emulators/tmux/etc. Try your own mapping
   -- or just use <C-\><C-n> to exit terminal mode
   vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
+
+  -- Open a terminal in a small split at the bottom (like :help) instead of replacing the current window
+  vim.api.nvim_create_user_command('Term', function(opts)
+    vim.cmd('botright 15split | terminal ' .. opts.args)
+    vim.cmd.startinsert()
+  end, { nargs = '*', complete = 'shellcmd', desc = 'Open terminal in a bottom split' })
+  vim.keymap.set('n', '<leader>tt', '<Cmd>Term<CR>', { desc = 'Open [T]erminal (bottom split)' })
+
+  -- Make a bare `:term` / `:terminal` use the bottom split too
+  vim.cmd [[cnoreabbrev <expr> term (getcmdtype() == ':' && getcmdline() =~# '^term$') ? 'Term' : 'term']]
+  vim.cmd [[cnoreabbrev <expr> terminal (getcmdtype() == ':' && getcmdline() =~# '^terminal$') ? 'Term' : 'terminal']]
 
   -- TIP: Disable arrow keys in normal mode
   -- vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
@@ -431,10 +448,37 @@ do
     },
   }
 
+  -- PaperColor: `:colorscheme PaperColor` (light/dark follows `:set background=light|dark`)
+  vim.pack.add { gh 'NLKNguyen/papercolor-theme' }
+
   -- Load the colorscheme here.
   -- Like many other themes, this one has different styles, and you could load
   -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-  vim.cmd.colorscheme 'tokyonight-night'
+  --
+  -- The last colorscheme you picked (via :colorscheme or :Telescope colorscheme) is remembered
+  -- and restored on startup. 'tokyonight-night' is used if nothing was saved yet.
+  local colorscheme_file = vim.fn.stdpath 'data' .. '/last_colorscheme'
+  local saved = vim.fn.filereadable(colorscheme_file) == 1 and vim.fn.readfile(colorscheme_file)[1] or nil
+  -- Turn on true colors *before* loading the theme. Older Vim themes (like PaperColor) only define
+  -- either true colors or 256 colors depending on this setting at load time, so if Neovim enables it
+  -- later during startup, most text falls back to plain white.
+  vim.o.termguicolors = true
+  if not (saved and pcall(vim.cmd.colorscheme, saved)) then vim.cmd.colorscheme 'tokyonight-night' end
+
+  -- If true colors get toggled later anyway, reload the current theme so its colors match
+  vim.api.nvim_create_autocmd('OptionSet', {
+    desc = 'Reload colorscheme when termguicolors changes',
+    pattern = 'termguicolors',
+    callback = function()
+      if vim.g.colors_name then pcall(vim.cmd.colorscheme, vim.g.colors_name) end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd('ColorScheme', {
+    desc = 'Remember the last used colorscheme',
+    group = vim.api.nvim_create_augroup('kickstart-remember-colorscheme', { clear = true }),
+    callback = function(args) vim.fn.writefile({ args.match }, colorscheme_file) end,
+  })
 
   -- Highlight todo, notes, etc in comments
   vim.pack.add { gh 'folke/todo-comments.nvim' }
@@ -733,7 +777,7 @@ do
   --  See `:help lsp-config` for information about keys and how to configure
   ---@type table<string, vim.lsp.Config>
   local servers = {
-    -- clangd = {},
+    clangd = {},
     -- gopls = {},
     -- pyright = {},
     -- tsc = {},
@@ -810,8 +854,16 @@ do
 
   for name, server in pairs(servers) do
     vim.lsp.config(name, server)
-    vim.lsp.enable(name)
+    -- clangd is installed but starts off; turn it on with <leader>tc
+    if name ~= 'clangd' then vim.lsp.enable(name) end
   end
+
+  -- Toggle C/C++ language support (clangd) on and off
+  vim.keymap.set('n', '<leader>tc', function()
+    local enable = not vim.lsp.is_enabled 'clangd'
+    vim.lsp.enable('clangd', enable)
+    vim.notify('clangd ' .. (enable and 'enabled' or 'disabled'))
+  end, { desc = '[T]oggle [C] language server (clangd)' })
 end
 
 -- ============================================================
@@ -1017,8 +1069,8 @@ do
   -- require 'kickstart.plugins.debug'
   -- require 'kickstart.plugins.indent_line'
   -- require 'kickstart.plugins.lint'
-  -- require 'kickstart.plugins.autopairs'
-  -- require 'kickstart.plugins.neo-tree'
+  require 'kickstart.plugins.autopairs'
+  require 'kickstart.plugins.neo-tree'
 
   -- NOTE: You can add your own plugins, configuration, etc. in `lua/custom/plugins/*.lua`.
   --
